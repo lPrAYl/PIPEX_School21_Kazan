@@ -1,123 +1,165 @@
-#include <stdio.h>		//	убрать
-#include <errno.h>		//	обработка ошибок errno
-#include <string.h>		//	для strerror
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>	
+#include <fcntl.h>
+#include <stdio.h>
 #include "libft_done/libft.h"
-#include <fcntl.h>		//	для open
+#include "gnl/get_next_line.h"
 
 
-#define	NUM_PROCESS 2
-//	функция access
 
-int	main(int argc, char **argv, char **env)
+int	main(int argc, char **argv, char **envp)
 {
 	int		i;
-	int		n;
+	int		j;
+	int		infile;
+	int		outfile;
+	int		num_cmd;
+
 	char	**chunk;
 	char	**cmd;
 	char	*path;
 
-	//if (argc < 5)
-	//{
-	//	printf("%s\n", strerror(errno));	//	нужен ли здесь strerror???
-	//	return (1);							//	почитать про exit
-	//}
 
-	/*>>>>>>>>>>>>>>>>>>>>>>>парсинг переменной окружения<<<<<<<<<<<<<<<*/
-	i = 0;
-	while (env[i])
+	//	проверка количества аргументов
+
+	if(argc < 5)
 	{
-		if (ft_strnstr(env[i], "PATH=", 5))
-		{
-			n = i;
-			break;
-		}
+		write(1, "Not enough arguments!\n",  22);
+		exit(EXIT_FAILURE);
+	}
+
+	//	парсинг переменной окружения
+
+	i = 0;
+	while(envp[i])
+	{
+		if(ft_strnstr(envp[i], "PATH=", 5))
+			break ;
 		i++;
 	}
-	chunk = ft_split(env[n] + 5, ':');		//	почистить память
+	chunk = ft_split(envp[i] + 5, ':');		//	почистить память
 
-	/*<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<*/
+	//	creating pipes
 
-	
+	num_cmd = argc - 3;
+	int	pids[num_cmd + 1];
+	int	pipes_fd[num_cmd][2];
 
-	
-	int	pids[NUM_PROCESS];
-	int	pipes[NUM_PROCESS + 1][2];
-
-
-	
-
-	//printf("%s\n", cmd[0]);
 	i = 0;
-	while (i < NUM_PROCESS + 1)							//	количество процессов + 1
+	while (i < num_cmd - 1)
 	{
-		if (pipe(pipes[i]) == -1)
+		if(pipe(pipes_fd[i]) == -1)
 		{
-			printf("Error with creating pipe\n");
-			return (1);								//	обработать ошибку
+			perror("Error with creating pipe");
+			exit(EXIT_FAILURE);
 		}
-		i++;
+		++i;
 	}
+
+	//	creating process
+
 	i = 0;
-	while (i < NUM_PROCESS)
+	while (i < num_cmd - 1)
 	{
 		pids[i] = fork();
 		if (pids[i] == -1)
 		{
-			printf("Error with creating process\n");
-			return (1);								//	обработать ошибку
+			perror("Error with creating process");
+			exit(EXIT_FAILURE);
 		}
-		if (pids[i] == 0)
+		if(pids[i] == 0)
 		{
-			int	j = 0;
-			while (j < NUM_PROCESS)
+			j = 0;
+			while (j < num_cmd - 1)
 			{
 				if (i != j)
-					close(pipes[j][0]);
-				if (i + 1 != j)
-					close(pipes[j][1]);
-				j++;
-			}		
-			//dup2(pipes[i][0], STDIN_FILENO);
-			//close(pipes[i][0]);
-			//pipes[i + 1][1] = open("outfile", O_WRONLY | O_TRUNC | O_CREAT, 0777);
-			//dup2(pipes[i + 1][1], STDOUT_FILENO);
-			//close(pipes[i + 1][1]);
-			//dup2(outfile, STDOUT_FILENO);
-			int	k = 0;
-			cmd = ft_split(argv[i + 1], ' ');			//	почистить память	//	получение команды из аргумента строки	//	тут нужно только cmd[0]
-			//printf("%s\n", cmd[0]);
-			while (chunk[k])
+					close(pipes_fd[j][1]);
+				if (i - 1 != j)
+					close(pipes_fd[j][0]);
+				++j;
+			}
+			if(i == 0)
 			{
-				path = ft_strjoin(chunk[k], "/");	//	почистить память
-				path = ft_strjoin(path, cmd[0]);	//	изменить strjoin
-				//printf("%s\n", path);
-				//printf("%s\n", argv[i]);
-				execve(path, &argv[i + 1], env);
-				k++;
-			}			
+				if(access(argv[1], 0) == -1)
+				{
+					perror("File does not exist");
+					exit(EXIT_FAILURE);	
+				}
+				infile = open(argv[1], O_RDONLY);
+				if(infile == -1)
+				{
+					perror("Not possible to open the file for reading");
+					exit(EXIT_FAILURE);
+				}
+				if(dup2(infile, STDIN_FILENO) == -1)
+				{
+					perror("Couldn't read from the file");
+					exit(EXIT_FAILURE);
+				}
+				close(infile);
+			}
+			if(i != 0)
+			{
+				if(dup2(pipes_fd[i - 1][0], STDIN_FILENO) == -1)
+				{
+					perror("Couldn't read from the pipe");
+					exit(EXIT_FAILURE);
+				}
+			}
+			if(dup2(pipes_fd[i][1], STDOUT_FILENO) == -1)
+			{
+				perror("Couldnt't write to the pipe");
+				exit(EXIT_FAILURE);
+			}
+			close(pipes_fd[i][0]);
+			close(pipes_fd[i + 1][1]);
+			j = 0;
+			cmd = ft_split(argv[i + 2], ' ');
+			while (chunk[j])
+			{
+				path = ft_strjoin(chunk[j], "/");	//	изменить strjoin
+				path = ft_strjoin(path, cmd[0]);	//	почистить память
+				execve(path, cmd, envp);
+				++j;
+			}
+			perror("Couldn't not find program to execute");
 		}
-		//printf("%d\n", i);
-		i++;
+		else
+		{
+			wait(NULL);
+			close(pipes_fd[i][1]);
+		}
+		++i;
 	}
-	for (int j = 0; j < NUM_PROCESS; j++)
+		
+	outfile = open(argv[argc - 1], O_CREAT | O_WRONLY | O_TRUNC, 0777);
+	if(outfile == -1)
 	{
-		if (j != NUM_PROCESS)
-			close(pipes[j][0]);
-		if (j != 0)
-			close(pipes[j][1]);
+		perror("Not possible to open the file for writting");
+		exit(EXIT_FAILURE);
 	}
+	if(dup2(pipes_fd[num_cmd - 2][0], STDIN_FILENO) == -1)
+	{
+		perror("Couldnt't read from the pipe");
+		exit(EXIT_FAILURE);	
+	}
+	if(dup2(outfile, STDOUT_FILENO) == -1)
+	{
+		perror("Couldnt't write to the file");
+		exit(EXIT_FAILURE);
+	}
+	close(pipes_fd[num_cmd - 2][0]);
+	close(pipes_fd[num_cmd - 2][1]);
+	j = 0;
 
-	int infile = open("infile", O_RDONLY, 0777);
-	dup2(infile, pipes[0][1]);
-	close(infile);
-	int outfile = open("outfile", O_WRONLY | O_TRUNC, 0777);
-	dup2(outfile, pipes[NUM_PROCESS][0]);
-	close(outfile);
-	close(pipes[0][1]);
-	close(pipes[NUM_PROCESS][0]);
-	for (i = 0; i < NUM_PROCESS; i++)
+	cmd = ft_split(argv[i + 2], ' ');
+	while (chunk[j])
 	{
-		waitpid(pids[i], NULL, 0);
+		path = ft_strjoin(chunk[j], "/");	//	изменить strjoin
+		path = ft_strjoin(path, cmd[0]);	//	почистить память
+		execve(path, cmd, envp);
+		++j;
 	}
-	execlp("wc", "wc", NULL);
+	perror("Couldn't not find program to execute");
 }
