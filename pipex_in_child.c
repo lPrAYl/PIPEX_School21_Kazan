@@ -61,7 +61,7 @@ int	main(int argc, char **argv, char **envp)
 	//	creating process
 
 	i = 0;
-	while (i < num_cmd - 1)
+	while (i < num_cmd)
 	{
 		pids[i] = fork();
 		if (pids[i] == -1)
@@ -82,6 +82,7 @@ int	main(int argc, char **argv, char **envp)
 			}
 			if(i == 0)
 			{
+				
 				while(ft_strncmp(buffer, argv[2], ft_strlen(argv[2])))
 				{
 					if(get_next_line(0, &buffer) && ft_strncmp(buffer, argv[2], ft_strlen(argv[2])))
@@ -91,27 +92,32 @@ int	main(int argc, char **argv, char **envp)
 					}
 					free(buffer);
 				}
+				dup2(pipes_fd[0][1], STDOUT_FILENO);
+				close(pipes_fd[0][1]);
         	}
-			if (i != 0)
+			if(i != 0)
 			{
+				close(pipes_fd[i - 1][1]);
 				if(dup2(pipes_fd[i - 1][0], STDIN_FILENO) == -1)
 				{
 					perror("Couldn't read from the pipe");
 					exit(EXIT_FAILURE);
 				}
+				close(pipes_fd[i - 1][0]);
 				if(dup2(pipes_fd[i][1], STDOUT_FILENO) == -1)
 				{
 					perror("Couldn't write to the pipe");
 					exit(EXIT_FAILURE);
 				}
 				close(pipes_fd[i][0]);
-				close(pipes_fd[i + 1][1]);
+				close(pipes_fd[i][1]);
 				j = 0;
-				cmd = ft_split(argv[i + 2], ' ');
+				cmd = ft_split(argv[i + 3], ' ');
 				while (chunk[j])
 				{
 					path = ft_strjoin(chunk[j], "/");	//	изменить strjoin
-					path = ft_strjoin(path, cmd[0]);	//	почистить память
+					path = ft_strjoin(path, cmd[0]);
+					write(1, "privet\n", 7);	//	почистить память
 					execve(path, cmd, envp);
 					++j;
 				}
@@ -125,7 +131,13 @@ int	main(int argc, char **argv, char **envp)
 		}
 		++i;
 	}
-
+	if (i == 1)
+	{
+	for (int k = 0; k < num_cmd - 1; k++)
+	{
+		//wait(NULL);
+		waitpid(pids[i], NULL, 0);
+	}
 	j = 0;
 	//while (j < num_cmd - 1)
 	//{
@@ -135,7 +147,7 @@ int	main(int argc, char **argv, char **envp)
 	//		close(pipes_fd[j][0]);
 	//	++j;
 	//}
-	outfile = open(argv[argc - 1], O_CREAT | O_WRONLY | O_APPEND, 0777);
+	outfile = open(argv[argc - 1], O_CREAT | O_WRONLY | O_APPEND, 0774);
 	if(outfile == -1)
 	{
 		perror("Not possible to open the file for writting");
@@ -152,11 +164,11 @@ int	main(int argc, char **argv, char **envp)
 		exit(EXIT_FAILURE);	
 	}
 	write(1, "hi\n", 3);
-	write(2, "ha\n", 3);
+	
 	close(pipes_fd[num_cmd - 2][0]);
 	close(pipes_fd[num_cmd - 2][1]);
 	j = 0;
-	cmd = ft_split(argv[i + 2], ' ');
+	cmd = ft_split(argv[i + 3], ' ');
 	while (chunk[j])
 	{
 		path = ft_strjoin(chunk[j], "/");	//	изменить strjoin
@@ -164,6 +176,8 @@ int	main(int argc, char **argv, char **envp)
 		execve(path, cmd, envp);
 		++j;
 	}
+		write(1, "privet2\n", 8);
 	perror("Couldn't not find program to execute");
+	}
 }
 
