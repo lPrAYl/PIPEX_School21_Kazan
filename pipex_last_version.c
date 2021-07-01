@@ -2,9 +2,11 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <stdio.h>
 
 #include "pipex.h"
-#include "get_next_line.h"
+#include "gnl/get_next_line.h"
+#include "libft_done/libft.h"
 
 char	*ft_strjoin_sds(char const *s1, char delimeter, char const *s2)
 {
@@ -35,7 +37,7 @@ char	*ft_strjoin_sds(char const *s1, char delimeter, char const *s2)
 	return (dest);
 }
 
-void	**find_and_separation_path(int argc, char **envp)
+char	**find_and_separation_path(char **envp)
 {
 	int		line;
 	char	**chunk;
@@ -51,7 +53,7 @@ void	**find_and_separation_path(int argc, char **envp)
 	return (chunk);
 }
 
-void	do_execve(char **argv, char **envp, char **chunk, int i)
+void	do_execve(char **argv, char **envp, t_pipex *fdp, int i)
 {
 	int		j;
 	char	**cmd;
@@ -59,9 +61,9 @@ void	do_execve(char **argv, char **envp, char **chunk, int i)
 
 	j = 0;
 	cmd = ft_split(argv[i + 2], ' ');
-	while (chunk[j])
+	while (fdp->chunk[j])
 	{
-		path = ft_strjoin_sds(chunk[j], '/', cmd[0]);
+		path = ft_strjoin_sds(fdp->chunk[j], '/', cmd[0]);
 		execve(path, cmd, envp);
 		++j;
 		free(path);
@@ -75,7 +77,7 @@ void	creating_pipes(t_pipex *fdp)
 	int	i;
 
 	i = 0;
-	while (i < fdp->num_cmd)
+	while (i < fdp->num_cmd - 1)
 	{
 		if(pipe(fdp[i].io) == -1)
 		{
@@ -84,6 +86,80 @@ void	creating_pipes(t_pipex *fdp)
 		}
 		++i;
 	}	
+}
+
+void	creating_first_child_proccess(char **argv, t_pipex *fdp)
+{
+	char	*buffer;
+	int		infile;
+
+	if(fdp->flag == 1)
+	{
+		buffer = "\0";
+		close(fdp[0].io[0]);
+		while (ft_strncmp(buffer, argv[2], ft_strlen(argv[2])))
+		{
+			if(get_next_line(0, &buffer) && ft_strncmp(buffer, argv[2], ft_strlen(argv[2])))
+			{
+				write(fdp[0].io[1], buffer, ft_strlen(buffer));
+				write(fdp[0].io[1], "\n", 1);
+			}
+			free(buffer);
+		}
+	}
+	else
+	{
+		infile = open(argv[1], O_RDONLY);
+		if(infile < 0)
+		{
+			perror(argv[1]);
+			exit(EXIT_FAILURE);
+		}
+		if(dup2(infile, STDIN_FILENO) == -1)
+		{
+			perror("Couldn't read from the file");
+			exit(EXIT_FAILURE);
+		}
+	}
+}
+
+void	creating_child_proccess(char **argv, t_pipex *fdp, int i)
+{
+		close(fdp[i - 1].io[1]);
+		if(dup2(fdp[i - 1].io[0], STDIN_FILENO) == -1)
+		{
+			perror("Couldn't read from the pipe");
+			exit(EXIT_FAILURE);
+		}
+		close(fdp[i - 1].io[0]);
+}
+
+void	parent_proccess(int argc, char **argv, char **envp, t_pipex *fdp, int i)
+{
+	int	outfile;
+
+	if(fdp->flag == 1)
+		outfile = open(argv[argc - 1], O_WRONLY | O_CREAT | O_APPEND, 0774);
+	else
+		outfile = open(argv[argc - 1], O_WRONLY | O_CREAT | O_TRUNC, 0774);
+	if (outfile == -1)
+	{
+		perror(argv[argc - 1]);
+		exit(EXIT_FAILURE);
+	}
+	if(dup2(outfile, STDOUT_FILENO) == -1)
+	{
+		perror("Couldn't read from the file");
+		exit(EXIT_FAILURE);
+	}
+	if(dup2(fdp[fdp->num_cmd - 2].io[0], STDIN_FILENO) == -1)
+	{
+		perror("Couldn't read from the pipe");
+		exit(EXIT_FAILURE);
+	}
+	close(fdp[fdp->num_cmd - 2].io[1]);
+	close(fdp[fdp->num_cmd - 2].io[0]);
+	do_execve(argv, envp, fdp, i);	
 }
 
 void	exec_process(int argc, char **argv, char **envp, t_pipex *fdp)
@@ -103,12 +179,38 @@ void	exec_process(int argc, char **argv, char **envp, t_pipex *fdp)
 		}
 		if(pid == 0)
 		{
-			if (i == 0)
+			if(i == 0)
 				creating_first_child_proccess(argv, fdp);
-			if (i != 0)
-				creating_child_proccess(argv, fdp);
+			if(i != 0)
+				creating_child_proccess(argv, fdp, i);
+			if(dup2(fdp[i].io[1], STDOUT_FILENO) == -1)
+			{
+				perror("Couldn't write to the pipe");
+				exit(EXIT_FAILURE);
+			}
+			close(fdp[i].io[0]);
+			close(fdp[i].io[1]);
+		
+			if(fdp->flag == 1 && i > 0)
+			{
+				do_execve(argv, envp, fdp, i + 1);
+			} 
+			else if (fdp->flag != 1)
+			{
+				do_execve(argv, envp, fdp, i);
+			}
 		}
+		else
+		{
+			close(fdp[i].io[1]);
+			if(i)
+				close(fdp[i - 1].io[0]);
+			wait(NULL);
+		}
+		++i;
 	}
+	
+	parent_proccess(argc, argv, envp, fdp, i);
 }
 
 int	main(int argc, char **argv, char **envp)
@@ -116,14 +218,16 @@ int	main(int argc, char **argv, char **envp)
 	int		num_cmd;
 	t_pipex	*fdp;
 
+	fdp = (t_pipex *)malloc(sizeof(t_pipex) * (argc - 2));
 	if(argc < 5)
 	{
 		write(1, "Not enough arguments!\n",  22);
 		exit(EXIT_FAILURE);
 	}
-	fdp->chunk = find_and_separation_path(argc, envp);
+	fdp->chunk = find_and_separation_path(envp);
 	if(argc == 6 && !ft_strncmp(argv[1], "here_doc", 8))
 	{
+		fdp->flag = 1;
 		fdp->num_cmd = argc - 4;
 		exec_process(argc, argv, envp, fdp);
 	}
@@ -133,15 +237,3 @@ int	main(int argc, char **argv, char **envp)
 		exec_process(argc, argv, envp, fdp);
 	}
 }
-
-// typedef struct t_list
-// {
-	// int pp[2];
-// } s_list 
-// 
-// s_list *fdp;
-// 
-// int fd[num-arg][2]
-// fdp[0].pp[1]
-// 
-// fdp[0][1]
