@@ -4,9 +4,9 @@
 #include <sys/wait.h>
 #include <stdio.h>
 
-#include "pipex.h"
+#include "pipex1.h"
 #include "gnl/get_next_line.h"
-#include "libft_done/libft.h"
+#include "libft/libft.h"
 
 char	*ft_strjoin_sds(char const *s1, char delimeter, char const *s2)
 {
@@ -53,7 +53,7 @@ char	**find_and_separation_path(char **envp)
 	return (chunk);
 }
 
-void	do_execve(char **argv, char **envp, t_pipex *fdp, int i)
+int	do_execve(char **argv, char **envp, t_pipex *fdp, int i)
 {
 	int		j;
 	char	**cmd;
@@ -61,6 +61,8 @@ void	do_execve(char **argv, char **envp, t_pipex *fdp, int i)
 
 	j = 0;
 	cmd = ft_split(argv[i + 2], ' ');
+	if (i == 1)
+		write(2, "uoc\n", 4);
 	while (fdp->chunk[j])
 	{
 		path = ft_strjoin_sds(fdp->chunk[j], '/', cmd[0]);
@@ -106,6 +108,7 @@ void	creating_first_child_proccess(char **argv, t_pipex *fdp)
 			}
 			free(buffer);
 		}
+		//dup2(fdp[0].io[1], STDOUT_FILENO);
 	}
 	else
 	{
@@ -128,7 +131,7 @@ void	creating_child_proccess(char **argv, t_pipex *fdp, int i)
 		close(fdp[i - 1].io[1]);
 		if(dup2(fdp[i - 1].io[0], STDIN_FILENO) == -1)
 		{
-			perror("Couldn't read from the pipe");
+			perror("Couldn't read 555 from the pipe");
 			exit(EXIT_FAILURE);
 		}
 		close(fdp[i - 1].io[0]);
@@ -157,6 +160,7 @@ void	parent_proccess(int argc, char **argv, char **envp, t_pipex *fdp, int i)
 		perror("Couldn't read from the pipe");
 		exit(EXIT_FAILURE);
 	}
+	
 	close(fdp[fdp->num_cmd - 2].io[1]);
 	close(fdp[fdp->num_cmd - 2].io[0]);
 	do_execve(argv, envp, fdp, i);	
@@ -164,12 +168,12 @@ void	parent_proccess(int argc, char **argv, char **envp, t_pipex *fdp, int i)
 
 void	exec_process(int argc, char **argv, char **envp, t_pipex *fdp)
 {
-	int	i;
-	int	pid;
+	int		i;
+	pid_t	pid;
 
 	creating_pipes(fdp);
 	i = 0;
-	while (i < fdp->num_cmd - 1)
+	while (i < fdp->num_cmd)
 	{
 		pid = fork();
 		if (pid == -1)
@@ -185,14 +189,17 @@ void	exec_process(int argc, char **argv, char **envp, t_pipex *fdp)
 				creating_child_proccess(argv, fdp, i);
 			if(dup2(fdp[i].io[1], STDOUT_FILENO) == -1)
 			{
-				perror("Couldn't write to the pipe");
+				perror("Couldn't write 555 to the pipe");
 				exit(EXIT_FAILURE);
 			}
 			close(fdp[i].io[0]);
 			close(fdp[i].io[1]);
-		
+			if (fdp->flag == 1)
+				write(2, "456cou\n", 7);
 			if(fdp->flag == 1 && i > 0)
 			{
+				fdp->flag = 0;
+				write(2, "cou\n", 4);
 				do_execve(argv, envp, fdp, i + 1);
 			} 
 			else if (fdp->flag != 1)
@@ -202,14 +209,14 @@ void	exec_process(int argc, char **argv, char **envp, t_pipex *fdp)
 		}
 		else
 		{
+			write(2, "CUV\n", 4);
+			wait(NULL);
 			close(fdp[i].io[1]);
 			if(i)
 				close(fdp[i - 1].io[0]);
-			wait(NULL);
 		}
 		++i;
 	}
-	
 	parent_proccess(argc, argv, envp, fdp, i);
 }
 
@@ -218,7 +225,7 @@ int	main(int argc, char **argv, char **envp)
 	int		num_cmd;
 	t_pipex	*fdp;
 
-	fdp = (t_pipex *)malloc(sizeof(t_pipex) * (argc - 2));
+	fdp = (t_pipex *)malloc(sizeof(t_pipex) * argc);
 	if(argc < 5)
 	{
 		write(1, "Not enough arguments!\n",  22);
@@ -229,6 +236,7 @@ int	main(int argc, char **argv, char **envp)
 	{
 		fdp->flag = 1;
 		fdp->num_cmd = argc - 4;
+		write(2, "MAC\n", 4);
 		exec_process(argc, argv, envp, fdp);
 	}
 	else
