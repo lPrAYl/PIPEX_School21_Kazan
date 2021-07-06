@@ -74,30 +74,23 @@ int	main(int argc, char **argv, char **env)
 	pid_t	pid;
 	t_pipex	*fdp;
 	
+	char	*cat[3] = {"/bin/cat", "-e", NULL};
+
 	if(argc < 5)
 	{
 		ft_putstr_fd("Not enough arguments!", 1);
 		exit(EXIT_FAILURE);
 	}
 	i = 0;
-	num_cmd = argc - 3;
-	fdp = (t_pipex *)malloc(sizeof(t_pipex) * (num_cmd - 1)); // количество пайпов
-	fdp->chunk = find_and_separation_path(env);
 	if(argc == 6 && !ft_strncmp(argv[1], "here_doc", 8))
-	{		
+	{
+		num_cmd = argc - 4;
+		fdp = (t_pipex *)malloc(sizeof(t_pipex) * (num_cmd - 1)); // количество пайпов
+		fdp->chunk = find_and_separation_path(env);
 		if(!ft_strncmp(argv[1], "here_doc", 8))
 		{
-			if(pipe(fdp[i].io) == -1)
-			{
-				perror("Error with creating pipe");
-				exit(EXIT_FAILURE);
-			}
+			pipe(fdp[i].io);
 			pid = fork();
-			if(pid == -1)
-			{
-				perror("Error with creating proccess");
-				exit(EXIT_FAILURE);
-			}
 			if(!pid)
 			{
 				char	*buf;
@@ -105,75 +98,42 @@ int	main(int argc, char **argv, char **env)
 				close(fdp[i].io[0]);
 				while(ft_strncmp(buf, argv[2], ft_strlen(argv[2])))
 				{
-					ft_putstr_fd("heredoc> ", 1);
 					if(get_next_line(0, &buf) && ft_strncmp(buf, argv[2], ft_strlen(argv[2])))
 					{
 						write(fdp[i].io[1], buf, ft_strlen(buf));
 						write(fdp[i].io[1], "\n", 1);
 					}
 				}
-				exit(EXIT_SUCCESS);
+				return (0);
 			}
 			i++;
 		}
 	}
 	else
 	{
-		infile = open(argv[1], O_RDONLY);
-		if(infile == -1)
-		{
-			perror(argv[1]);
-			exit(EXIT_FAILURE);
-		}
+		infile = open("infile", O_RDONLY);
+		num_cmd = argc - 3;
+		fdp = (t_pipex *)malloc(sizeof(t_pipex) * (num_cmd - 1));
+		fdp->chunk = find_and_separation_path(env);
 	}
-	outfile = open(argv[argc -1], O_RDWR | O_CREAT | O_TRUNC, 0777);
-	if(outfile == -1)
-	{
-		perror(argv[argc - 1]);
-		exit(EXIT_FAILURE);
-	}
-	if(pipe(fdp[i].io) == -1)
-	{
-		perror("Error with creating pipe");
-		exit(EXIT_FAILURE);
-	}
+	outfile = open("outfile", O_RDWR | O_CREAT | O_TRUNC, 0777);
+	pipe(fdp[i].io);
 	pid = fork();
-	if(pid == -1)
-	{
-		perror("Error with creating proccess");
-		exit(EXIT_FAILURE);
-	}
 	if(!pid)
 	{
 		if(!ft_strncmp(argv[1], "here_doc", 8) && argc == 6)
 		{
 			close(fdp[i - 1].io[1]);
-			if(dup2(fdp[i - 1].io[0], 0) == -1) // stdin
-			{
-				perror("Couldn't read from the pipe");
-				exit(EXIT_FAILURE);
-			}
+			dup2(fdp[i - 1].io[0], 0); // stdin
 			close(fdp[i].io[0]);
-			if(dup2(fdp[i].io[1], 1) == -1)
-			{
-				perror("Couldn't write to the pipe");
-				exit(EXIT_FAILURE);
-			}
+			dup2(fdp[i].io[1], 1);
 			do_execve(argv, env, fdp, i);
 		}	
 		else
 		{
-			if(dup2(infile, 0) == -1)
-			{
-				perror("Couldn't read from the file");
-				exit(EXIT_FAILURE);
-			}
+			dup2(infile, 0);
 			close(fdp[i].io[0]);
-			if(dup2(fdp[i].io[1], 1) == -1)
-			{
-				perror("Couldn't write to the pipe");
-				exit(EXIT_FAILURE);
-			}
+			dup2(fdp[i].io[1], 1);
 			do_execve(argv, env, fdp, i);
 		}
 	}
@@ -183,34 +143,18 @@ int	main(int argc, char **argv, char **env)
 		if(!ft_strncmp(argv[1], "here_doc", 8))
 			close(fdp[i - 1].io[1]); // для here_doc -1
 		close(fdp[i].io[1]);
-		while(i < num_cmd - 2)
+		while(i < 2)
 		{
 			i++;
-			if(pipe(fdp[i].io) == -1)
-			{
-				perror("Error with creating pipe");
-				exit(EXIT_FAILURE);
-			}
+			pipe(fdp[i].io);
 			pid = fork();
-			if(pid == -1)
-			{
-				perror("Error with creating proccess");
-				exit(EXIT_FAILURE);
-			}
 			if(!pid)
 			{
-				if(dup2(fdp[i - 1].io[0], 0) == -1)
-				{
-					perror("Couldn't read from the pipe");
-					exit(EXIT_FAILURE);
-				}
+				dup2(fdp[i - 1].io[0], 0);
 				close(fdp[i].io[0]);
-				if(dup2(fdp[i].io[1], 1) == -1)
-				{
-					perror("Couldn't write to the pipe");
-					exit(EXIT_FAILURE);
-				}
-				do_execve(argv, env, fdp, i);
+				dup2(fdp[i].io[1], 1);
+				execve(cat[0], cat, NULL);
+				return (0);
 			}
 			if(pid)
 			{
@@ -222,17 +166,9 @@ int	main(int argc, char **argv, char **env)
 		}
 	}
 	close(fdp[i].io[1]);
-	if(dup2(fdp[i].io[0], 0) == -1)
-	{
-		perror("Couldn't read from the pipe");
-		exit(EXIT_FAILURE);
-	}
-	if(dup2(outfile, 1) == -1)
-	{
-		perror("Couldn't write to the file");
-		exit(EXIT_FAILURE);
-	}
-	do_execve(argv, env, fdp, i + 1);
+	dup2(fdp[i].io[0], 0);
+	dup2(outfile, 1);
+	execve(cat[0], cat, NULL);
 	printf("!");
 	return (0);
 }
