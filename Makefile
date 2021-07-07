@@ -2,7 +2,7 @@ NAME		= pipex
 
 BONUS		= pipex_bonus
 
-SRC			= 	main.c	do_execve.c
+SRC			= 	main.c	exec.c	first_proccess.c	create_proccess.c	utils.c
 
 SRCDIR		= ./srcs/
 
@@ -32,11 +32,11 @@ HEADER		= $(addprefix $(INCDIR), $(HDR))
 all:		$(NAME)
 
 $(NAME) :	$(HEADER) $(LIBFT) $(OBJS)
-		gcc $(FLAGS) -I $(INCDIR) -c srcs/main.c - o srcs/main.o
+		gcc $(FLAGS) -I $(INCDIR) -c srcs/main.c -o srcs/main.o
 		gcc $(FLAGS) -I $(INCDIR) $(OBJS) $(LIBFLAGS) -o $(NAME)
 
 $(BONUS) :	$(HEADER) $(LIBFT) $(OBJS)
-		gcc $(FLAGS) $(BONUSFLAGS) -I $(INCDIR) -c srcs/main.c - o srcs/main.o
+		gcc $(FLAGS) $(BONUSFLAGS) -I $(INCDIR) -c srcs/main.c -o srcs/main.o
 		gcc $(FLAGS) -I $(INCDIR) $(OBJS) $(LIBFLAGS) -o $(BONUS)
 
 $(LIBFT) :
