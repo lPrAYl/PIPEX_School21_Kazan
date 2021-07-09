@@ -15,7 +15,6 @@ typedef struct s_pipex
 	int		outfile;
 	int		num_pipe;
 	char	**chunk;
-
 }			t_pipex;
 
 char	*ft_strjoin_sds(char const *s1, char delimeter, char const *s2);
@@ -26,9 +25,8 @@ void	parent_process(char **argv, t_pipex *fdp, int i);
 void	heredoc(char **argv, t_pipex *fdp);
 void	first_child_proccess(char **argv, char **env, t_pipex *fdp, int i);
 void	ft_perror(char *str);
-int	multiply_cmd(char **argv, char **env, t_pipex *fdp, int i);
-int	reading(char **argv, t_pipex *fdp, int i);
-int	process(char **argv, char **env, t_pipex *fdp, int i);
-int	ft_strncmp_pipex(const char *s1, const char *s2, size_t n);
+int		multiply_cmd(char **argv, char **env, t_pipex *fdp, int i);
+int		reading(char **argv, t_pipex *fdp, int i);
+int		process(char **argv, char **env, t_pipex *fdp, int i);
 
 #endif

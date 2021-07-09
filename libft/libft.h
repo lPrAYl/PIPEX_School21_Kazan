@@ -68,6 +68,7 @@ char			*ft_strchr(const char *string, int searchedchar);
 char			*ft_strrchr(const char *string, int searchedchar);
 char			*ft_strnstr(const char *s1, const char *s2, size_t len);
 int				ft_strncmp(const char *f, const char *s, size_t len);
+int				ft_strcmp(const char *s1, const char *s2);
 int				ft_atoi(char *str);
 int				ft_isalpha(int character);
 int				ft_isdigit(int character);
